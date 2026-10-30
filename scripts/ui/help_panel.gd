@@ -21,7 +21,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _build() -> void:
-	var panel := UiKit.panel_container()
+	var panel := UiKit.panel_container(UiKit.accent_style(UiKit.CYAN))
 	panel.position = Vector2(330, 90)
 	panel.size = Vector2(1260, 900)
 	add_child(panel)

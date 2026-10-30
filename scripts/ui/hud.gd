@@ -168,6 +168,7 @@ func show_game_over_banner(reason: String) -> void:
 
 func _draw() -> void:
 	var font := ThemeDB.fallback_font
+	_draw_ui_panels()
 	_draw_top_left(font)
 	_draw_top_center(font)
 	_draw_bottom_left(font)
@@ -179,6 +180,27 @@ func _draw() -> void:
 	_draw_popups(font)
 	_draw_banner(font)
 	_draw_damage_overlay()
+
+
+func _draw_ui_panels() -> void:
+	var panel := Color(0.03, 0.04, 0.09, 0.64)
+	var border := Color(0.5, 0.9, 1.0, 0.18)
+	draw_style_box(_hud_panel(panel, border, 18), Rect2(36, 34, 430, 250))
+	draw_style_box(_hud_panel(panel, border, 18), Rect2(530, 34, 860, 148))
+	draw_style_box(_hud_panel(panel, border, 18), Rect2(36, 888, 470, 140))
+	draw_style_box(_hud_panel(panel, border, 18), Rect2(1690, 890, 200, 140))
+
+
+func _hud_panel(bg: Color, border: Color, radius: int) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = bg
+	style.border_color = border
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(radius)
+	style.shadow_color = Color(0.01, 0.02, 0.06, 0.42)
+	style.shadow_size = 10
+	style.shadow_offset = Vector2(0, 4)
+	return style
 
 
 func _draw_top_left(font: Font) -> void:

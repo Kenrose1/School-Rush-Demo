@@ -6,6 +6,9 @@ extends Node2D
 signal finished
 
 const DURATION := 8.2
+const BACKGROUND_TEXTURE := preload("res://assets/backgrounds/opening_bedroom.png")
+const BED_SLEEP_POSITION := Vector2(560, 470)
+const BED_EXIT_POSITION := Vector2(760, 810)
 
 var _time: float = 0.0
 var _finished: bool = false
@@ -58,38 +61,10 @@ func _draw() -> void:
 	if _time > 7.2:
 		fade = clampf(1.0 - (_time - 7.2) / 0.9, 0.0, 1.0)
 	var dim := Color(1, 1, 1, fade)
-	# Room.
-	draw_rect(Rect2(0, 0, 1920, 1080), Color("#2b3350") * dim)
-	draw_rect(Rect2(0, 620, 1920, 460), Color("#7a5233") * dim)
-	for i in 12:
-		draw_rect(Rect2(float(i) * 180.0, 620, 4, 460), Color("#5f3f26") * dim)
-	# Wall detail + window with morning light.
-	draw_rect(Rect2(0, 0, 1920, 40), Color("#1f253c") * dim)
-	var window := Rect2(1250, 150, 380, 300)
-	draw_rect(window.grow(12), Color("#5f3f26") * dim)
-	draw_rect(window, Color("#bfe9ff") * dim)
-	draw_rect(window, Color(1, 0.95, 0.7, 0.45 * fade))
-	draw_rect(Rect2(window.position.x + window.size.x * 0.5 - 5, window.position.y, 10, window.size.y), Color("#5f3f26") * dim)
-	# Light shaft.
-	draw_colored_polygon(
-		PackedVector2Array([
-			Vector2(1250, 450), Vector2(1630, 450), Vector2(1100, 1080), Vector2(500, 1080),
-		]),
-		Color(1, 0.95, 0.7, 0.08 * fade)
-	)
-	# Bed.
-	draw_rect(Rect2(400, 640, 620, 190), Color("#6b4a2c") * dim)
-	draw_rect(Rect2(420, 610, 580, 120), Color("#f4f7ff") * dim)
-	draw_rect(Rect2(420, 690, 580, 90), Color("#5d8fd6") * dim)
-	draw_rect(Rect2(360, 520, 50, 320), Color("#5f3f26") * dim)
-	draw_rect(Rect2(380, 560, 90, 70), Color("#f4f7ff") * dim)
-	# Nightstand + alarm clock.
-	draw_rect(Rect2(1080, 700, 150, 130), Color("#7a5233") * dim)
+	_draw_background(dim)
+	draw_rect(Rect2(0, 0, 1920, 170), Color(0.02, 0.03, 0.08, 0.18 * fade))
+	draw_rect(Rect2(0, 820, 1920, 260), Color(0.02, 0.03, 0.08, 0.24 * fade))
 	_draw_clock(Vector2(1155, 700), dim)
-	# Door.
-	draw_rect(Rect2(1680, 330, 180, 500), Color("#5f3f26") * dim)
-	draw_rect(Rect2(1692, 342, 156, 488), Color("#a9713f") * dim)
-	draw_circle(Vector2(1700, 600), 8.0, Color("#ffd166") * dim)
 	_draw_character(dim)
 	# Captions.
 	var caption := ""
@@ -125,6 +100,23 @@ func _draw() -> void:
 		draw_circle(Vector2(880, 398 - bounce), 8.0, Color("#fff5f2"))
 
 
+func _draw_background(modulate: Color) -> void:
+	var target := Vector2(1920, 1080)
+	var source_size := BACKGROUND_TEXTURE.get_size()
+	var target_ratio := target.x / target.y
+	var source_ratio := source_size.x / source_size.y
+	var source_rect := Rect2(Vector2.ZERO, source_size)
+	if source_ratio > target_ratio:
+		var cropped_width := source_size.y * target_ratio
+		source_rect.position.x = (source_size.x - cropped_width) * 0.5
+		source_rect.size.x = cropped_width
+	elif source_ratio < target_ratio:
+		var cropped_height := source_size.x / target_ratio
+		source_rect.position.y = (source_size.y - cropped_height) * 0.5
+		source_rect.size.y = cropped_height
+	draw_texture_rect_region(BACKGROUND_TEXTURE, Rect2(Vector2.ZERO, target), source_rect, modulate)
+
+
 func _draw_clock(pos: Vector2, dim: Color) -> void:
 	var shake := 0.0
 	if _time > 1.4 and _time < 2.6:
@@ -140,13 +132,13 @@ func _draw_clock(pos: Vector2, dim: Color) -> void:
 
 func _draw_character(dim: Color) -> void:
 	var t := _time
-	var base := Vector2(760, 810)
+	var base := BED_EXIT_POSITION
 	var sitting := t > 2.3
 	var running := t > 4.8
 	var alpha: float = dim.a
 	if running:
 		var run_progress := clampf((t - 4.8) / 1.8, 0.0, 1.0)
-		base = Vector2(760.0 + run_progress * 900.0, 810.0)
+		base = Vector2(BED_EXIT_POSITION.x + run_progress * 900.0, BED_EXIT_POSITION.y)
 		var bob := sin(t * 22.0) * 8.0
 		base.y += bob
 		# Motion lines.
@@ -157,13 +149,13 @@ func _draw_character(dim: Color) -> void:
 			)
 	if not sitting:
 		# Sleeping: blanket + head on pillow.
-		draw_rect(Rect2(500, 640, 330, 80), Color("#5d8fd6") * alpha)
-		draw_circle(Vector2(470, 610), 44.0, Color("#171325") * alpha)
-		draw_circle(Vector2(470, 610), 38.0, Color("#ffcda3") * alpha)
-		draw_rect(Rect2(432, 570, 76, 26), Color("#37241a") * alpha)
+		draw_rect(Rect2(BED_SLEEP_POSITION + Vector2(-30, 0), Vector2(330, 80)), Color("#5d8fd6") * alpha)
+		draw_circle(BED_SLEEP_POSITION + Vector2(-60, -30), 44.0, Color("#171325") * alpha)
+		draw_circle(BED_SLEEP_POSITION + Vector2(-60, -30), 38.0, Color("#ffcda3") * alpha)
+		draw_rect(Rect2(BED_SLEEP_POSITION + Vector2(-98, -70), Vector2(76, 26)), Color("#37241a") * alpha)
 		for i in 3:
 			var zz := fposmod(t * 40.0 + float(i) * 26.0, 90.0)
-			_draw_text_at("Z", Vector2(520 + zz * 0.8, 560 - zz), 26 + i * 6, Color(1, 1, 1, 0.7 * alpha))
+			_draw_text_at("Z", BED_SLEEP_POSITION + Vector2(-40 + zz * 0.8, -80 - zz), 26 + i * 6, Color(1, 1, 1, 0.7 * alpha))
 		return
 	# Sitting / running character.
 	var leg_swing := sin(t * 22.0) * 30.0 if running else 0.0

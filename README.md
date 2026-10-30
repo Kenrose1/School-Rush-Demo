@@ -68,11 +68,12 @@ scripts/
   ui/                    hud, main_menu, pause_menu, options_panel, help_panel,
                          results_screen, cutscene, ui_kit
 assets/audio/            generated chiptune stems + SFX (WAV)
+assets/backgrounds/      opening cutscene bedroom background (PNG)
 tests/                   headless test suite
 tools/gen_audio.py       offline chiptune/SFX generator
 ```
 
-All visuals are drawn procedurally with Godot canvas primitives (`_draw`), so there are **no third‑party art assets and no licensing dependencies**.
+World, hazard, and pursuer visuals are drawn procedurally with Godot canvas primitives (`_draw`). The playable Elias character uses the sprite sheet in `assets/characters/elias_sheet.png`; it is a project-local asset with no external runtime dependency. The UI uses a shared neon arcade-school visual system with layered panels, consistent accents, HUD information zones, and stronger lane readability.
 
 ## Tests
 
@@ -80,7 +81,7 @@ All visuals are drawn procedurally with Godot canvas primitives (`_draw`), so th
 godot --headless --path . res://tests/test_runner.tscn
 ```
 
-Current result: **151 checks, 0 failures**, covering the input map, lane clamping, jump arc and slide hitbox, i‑frames, combo and score math, zone mapping, 3000 fuzzed spawn patterns, pursuer state machine and lunge, save/load round‑trip, audio asset decoding, scene instantiation, a scripted run integration test, mode end conditions, **live Area2D pickup/damage plus jump‑over and slide‑under clearance**, and the full menu → run → pause → menu flow.
+Current result: **155 checks, 0 failures**, covering the input map, lane clamping, jump arc and slide hitbox, i‑frames, combo and score math, zone mapping, 3000 fuzzed spawn patterns, pursuer state machine and lunge, save/load round‑trip, audio asset decoding, scene instantiation, a scripted run integration test, mode end conditions, **lane-specific live Area2D pickup/damage plus jump-over and slide-under clearance**, and the full menu → run → pause → menu flow.
 
 ## Regenerating audio
 
@@ -104,6 +105,7 @@ godot --headless --path . --export-release "Windows Desktop" build/windows/Schoo
 
 ## Notes / limitations
 
+- The opening cutscene uses `assets/backgrounds/opening_bedroom.png` as an aspect-preserving, centered-crop background; the clock, Elias, captions and alert animation remain procedural overlays.
 - A rendered visual check was not possible in the build environment used here (headless Linux VM with no GPU/X server). The draw pass itself does run headless — every menu/HUD/zone `_draw` executes without errors and the default font loads — and gameplay is covered by physics‑level tests, but colors, spacing and text fit still deserve a final look in the Godot editor on a desktop.
 - The dash key is **Left Shift**; the GDD defines the dash mechanic but does not assign a key.
 - The optional in‑editor level placement plugin described in GDD Section IX is not included; hazards are spawned by the data‑driven `SpawnDirector`.

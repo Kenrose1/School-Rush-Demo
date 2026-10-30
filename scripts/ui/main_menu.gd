@@ -142,6 +142,15 @@ func _draw() -> void:
 	# Dark gradient behind the buttons for readability.
 	draw_rect(Rect2(1040, 0, 880, 1080), Color(0.03, 0.04, 0.08, 0.55))
 	draw_rect(Rect2(0, 0, 760, 1080), Color(0.03, 0.04, 0.08, 0.28))
+	# Subtle grid and neon accents keep the menu readable over the animated scene.
+	for i in 12:
+		var y := 80.0 + float(i) * 70.0
+		draw_line(Vector2(0, y), Vector2(1920, y), Color(0.5, 0.9, 1.0, 0.035), 1.0)
+	for i in 20:
+		var x := float(i) * 120.0
+		draw_line(Vector2(x, 0), Vector2(x, 1080), Color(0.5, 0.9, 1.0, 0.025), 1.0)
+	draw_rect(Rect2(1120, 252, 620, 4), UiKit.CYAN)
+	draw_rect(Rect2(1120, 256, 180, 4), UiKit.PINK)
 
 
 func _draw_cloud(pos: Vector2, scale: float) -> void:

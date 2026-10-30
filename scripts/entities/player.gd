@@ -12,19 +12,6 @@ signal hit_taken(hearts_left: int)
 signal defeated
 signal item_picked(kind: String, world_position: Vector2)
 
-const OUTLINE := Color("#171325")
-const SKIN := Color("#ffcda3")
-const SKIN_SHADE := Color("#e5a87b")
-const HAIR := Color("#37241a")
-const SHIRT := Color("#f6f8ff")
-const VEST := Color("#2f6fd0")
-const VEST_DARK := Color("#1f4a93")
-const SHORTS := Color("#1d2740")
-const SHOE := Color("#e8453c")
-const SOCK := Color("#f6f8ff")
-const BAG := Color("#f0b429")
-const BAG_DARK := Color("#c98a12")
-
 @export var lane: int = 1
 @export var max_hearts: int = GameConfig.MAX_HEARTS
 
@@ -49,6 +36,7 @@ var _lane_tween: Tween
 var _shape: RectangleShape2D
 var _hitbox: Area2D
 var _hitbox_shape: CollisionShape2D
+@onready var _sprite: Sprite2D = $Sprite
 
 
 func _ready() -> void:
@@ -65,6 +53,7 @@ func _ready() -> void:
 	_hitbox.area_entered.connect(_on_hitbox_area_entered)
 	position.y = GameConfig.lane_y(lane)
 	hitbox_updated()
+	_update_sprite()
 	queue_redraw()
 
 
@@ -82,6 +71,7 @@ func _physics_process(delta: float) -> void:
 		modulate.a = 1.0
 	position.x = GameConfig.PLAYER_X
 	hitbox_updated()
+	_update_sprite()
 	queue_redraw()
 
 
@@ -215,6 +205,7 @@ func reset_for_run() -> void:
 	position.y = GameConfig.lane_y(lane)
 	modulate.a = 1.0
 	hitbox_updated()
+	_update_sprite()
 	queue_redraw()
 
 
@@ -251,8 +242,11 @@ func _on_hitbox_area_entered(area: Area2D) -> void:
 		area.collect()
 		return
 	if area.has_method("is_hazard") and area.is_hazard():
+		var hazard := area as Hazard
+		if hazard == null or hazard.lane != lane:
+			return
 		if take_hit():
-			area.on_player_hit()
+			hazard.on_player_hit()
 
 
 func _tick_timers(delta: float) -> void:
@@ -281,123 +275,40 @@ func _update_slide(delta: float) -> void:
 		slide_timer = 0.0
 
 
-# --- Drawing (procedural 16-bit style sprite) -------------------------------
+# --- Character presentation -------------------------------------------------
+
+func _update_sprite() -> void:
+	if _sprite == null:
+		return
+	var row := 2
+	var frame := int(floor(_run_phase * 1.8)) % 6
+	if defeated_state:
+		row = 6
+		frame = 5
+	elif sliding:
+		row = 6
+		frame = int(floor(_run_phase * 1.4)) % 6
+	elif airborne:
+		row = 4
+		frame = 2
+	elif _hurt_flash > 0.0:
+		row = 4
+		frame = 0
+	_sprite.frame = row * 6 + frame
+	_sprite.position = Vector2(0.0, -50.0 - jump_height + _bob)
+	_sprite.modulate = Color(1.0, 0.45, 0.45) if _hurt_flash > 0.0 else Color.WHITE
 
 func _draw() -> void:
-	var y := -jump_height + _bob
-	var flicker := _hurt_flash > 0.0
-	var tint := Color(1, 0.45, 0.45) if flicker else Color.WHITE
-
 	# Ground shadow (stays on the lane).
 	var shadow_alpha := clampf(1.0 - jump_height / 220.0, 0.15, 0.55)
 	draw_circle(Vector2(0, 4), 34.0, Color(0.05, 0.04, 0.1, shadow_alpha * 0.6))
 	draw_rect(Rect2(-34, 0, 68, 10), Color(0.05, 0.04, 0.1, shadow_alpha * 0.5))
 
-	if sliding:
-		_draw_slide(y)
-	else:
-		_draw_standing(y, tint)
-
+	var y := -jump_height + _bob
 	if is_dashing():
 		_draw_dash_streaks(y)
 	if invuln_timer > 0.0 and not is_dashing():
 		draw_arc(Vector2(0, y - 58), 62.0, 0.0, TAU, 28, Color(0.75, 0.95, 1.0, 0.55), 4.0)
-
-
-func _draw_standing(y: float, tint: Color) -> void:
-	var phase := _run_phase
-	var hip := Vector2(0, y - 46)
-	var leg_swing := sin(phase)
-	var leg_lift := 0.0 if airborne else absf(cos(phase)) * 5.0
-
-	# Backpack (behind the body).
-	_rect(Rect2(-32, y - 88, 22, 42), BAG_DARK)
-	_rect(Rect2(-30, y - 86, 18, 38), BAG)
-
-	# Back leg.
-	var back_foot := hip + Vector2(-8.0 + leg_swing * 20.0, 40.0 - leg_lift)
-	if airborne:
-		back_foot = hip + Vector2(-14, 30)
-	_limb(hip + Vector2(-6, 0), back_foot, SHORTS.darkened(0.25), 18.0, 11.0)
-	_rect(Rect2(back_foot.x - 11, back_foot.y - 4, 24, 12), OUTLINE)
-	_rect(Rect2(back_foot.x - 9, back_foot.y - 3, 20, 8), SHOE.darkened(0.2))
-
-	# Torso.
-	_rect(Rect2(-21, y - 84, 42, 42), OUTLINE)
-	_rect(Rect2(-18, y - 82, 36, 38), SHIRT)
-	# Vest / uniform.
-	_rect(Rect2(-18, y - 82, 12, 30), VEST)
-	_rect(Rect2(6, y - 82, 12, 30), VEST)
-	_rect(Rect2(-18, y - 82, 36, 5), VEST_DARK)
-	# Tie.
-	_rect(Rect2(-3, y - 78, 6, 16), SHOE)
-	# Backpack straps.
-	_rect(Rect2(-16, y - 82, 5, 34), BAG_DARK)
-	_rect(Rect2(11, y - 82, 5, 34), BAG_DARK)
-
-	# Front leg.
-	var front_foot := hip + Vector2(8.0 - leg_swing * 22.0, 40.0 - maxf(0.0, -sin(phase)) * 6.0)
-	if airborne:
-		front_foot = hip + Vector2(16, 16)
-	_limb(hip + Vector2(5, 0), front_foot, SHORTS, 18.0, 11.0)
-	_rect(Rect2(front_foot.x - 11, front_foot.y - 4, 24, 12), OUTLINE)
-	_rect(Rect2(front_foot.x - 9, front_foot.y - 3, 20, 8), SHOE)
-	_rect(Rect2(front_foot.x - 9, front_foot.y + 4, 20, 3), Color("#f4f4f4"))
-
-	# Arms.
-	var arm_swing := -sin(phase) * 14.0
-	var shoulder := Vector2(0, y - 74)
-	if airborne:
-		_limb(shoulder + Vector2(-14, 10), shoulder + Vector2(-30, -8), VEST_DARK, 14.0, 8.0)
-		_limb(shoulder + Vector2(14, 10), shoulder + Vector2(30, -8), VEST, 14.0, 8.0)
-	else:
-		_limb(shoulder + Vector2(-16, 6), shoulder + Vector2(-20, 30 + arm_swing), VEST_DARK, 14.0, 8.0)
-		draw_circle(shoulder + Vector2(-20, 30 + arm_swing), 5.0, SKIN_SHADE)
-		_limb(shoulder + Vector2(16, 6), shoulder + Vector2(20, 30 - arm_swing), VEST, 14.0, 8.0)
-		draw_circle(shoulder + Vector2(20, 30 - arm_swing), 5.0, SKIN)
-
-	# Head.
-	var head := Vector2(0, y - 100)
-	draw_circle(head, 22.0, OUTLINE)
-	draw_circle(head, 19.0, SKIN)
-	# Hair.
-	draw_rect(Rect2(head.x - 20, head.y - 24, 40, 16), OUTLINE)
-	draw_rect(Rect2(head.x - 18, head.y - 23, 36, 11), HAIR)
-	draw_rect(Rect2(head.x - 22, head.y - 12, 10, 12), HAIR)
-	# Face.
-	draw_rect(Rect2(head.x + 3, head.y - 4, 4, 6), OUTLINE)
-	draw_rect(Rect2(head.x + 12, head.y - 4, 4, 6), OUTLINE)
-	draw_rect(Rect2(head.x + 6, head.y + 10, 10, 3), OUTLINE)
-	if _hurt_flash > 0.0:
-		draw_rect(Rect2(head.x - 18, head.y - 10, 36, 18), Color(1, 0.3, 0.3, 0.35))
-	# Ear.
-	draw_circle(Vector2(head.x - 18, head.y + 2), 5.0, SKIN_SHADE)
-
-
-func _draw_slide(y: float) -> void:
-	var base := Vector2(0, y - 30)
-	# Legs extended forward.
-	_rect(Rect2(base.x - 46, base.y + 8, 58, 16), OUTLINE)
-	_rect(Rect2(base.x - 44, base.y + 10, 54, 11), SHORTS)
-	_rect(Rect2(base.x + 10, base.y + 6, 26, 18), OUTLINE)
-	_rect(Rect2(base.x + 12, base.y + 8, 23, 13), SHOE)
-	# Low torso.
-	_rect(Rect2(base.x - 34, base.y - 34, 62, 38), OUTLINE)
-	_rect(Rect2(base.x - 31, base.y - 31, 56, 32), SHIRT)
-	_rect(Rect2(base.x - 31, base.y - 31, 16, 24), VEST)
-	_rect(Rect2(base.x + 12, base.y - 31, 14, 24), VEST)
-	_rect(Rect2(base.x + 6, base.y - 34, 24, 8), BAG)
-	# Head tucked.
-	var head := Vector2(base.x + 26, base.y - 46)
-	draw_circle(head, 20.0, OUTLINE)
-	draw_circle(head, 17.0, SKIN)
-	draw_rect(Rect2(head.x - 18, head.y - 20, 36, 12), OUTLINE)
-	draw_rect(Rect2(head.x - 16, head.y - 19, 32, 8), HAIR)
-	draw_rect(Rect2(head.x + 2, head.y - 2, 4, 5), OUTLINE)
-	# Dust puffs.
-	var puff := fmod(Time.get_ticks_msec() * 0.08, 26.0)
-	draw_circle(Vector2(base.x - 52 - puff, base.y + 16), 8.0, Color(0.85, 0.85, 0.9, 0.4))
-	draw_circle(Vector2(base.x - 70 - puff, base.y + 8), 5.0, Color(0.85, 0.85, 0.9, 0.3))
 
 
 func _draw_dash_streaks(y: float) -> void:
@@ -407,12 +318,3 @@ func _draw_dash_streaks(y: float) -> void:
 		var line_y := y - 20.0 - fmod(i * 53.0, 96.0)
 		var alpha := 0.35 * (1.0 - offset / 420.0)
 		draw_rect(Rect2(-offset - 40.0, line_y, 70.0, 4.0), Color(0.7, 0.95, 1.0, alpha))
-
-
-func _rect(rect: Rect2, color: Color) -> void:
-	draw_rect(rect, color, true)
-
-
-func _limb(from: Vector2, to: Vector2, color: Color, outline_width: float, fill_width: float) -> void:
-	draw_line(from, to, OUTLINE, outline_width, true)
-	draw_line(from, to, color, fill_width, true)

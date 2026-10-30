@@ -368,6 +368,7 @@ func _draw_lane_bands(dark: Color, light: Color) -> void:
 		var alpha := 0.22 if i % 2 == 0 else 0.1
 		draw_rect(Rect2(0, center - 58, WIDTH, 116), Color(light.r, light.g, light.b, alpha))
 		draw_rect(Rect2(0, center - 58, WIDTH, 2), Color(dark.r, dark.g, dark.b, 0.5))
+		draw_rect(Rect2(0, center + 56, WIDTH, 2), Color(dark.r, dark.g, dark.b, 0.24))
 	# Chevron hints for lane readability.
 	var chev := fposmod(-scroll, 260.0)
 	for i in 9:

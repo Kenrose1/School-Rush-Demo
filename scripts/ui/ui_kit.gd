@@ -12,6 +12,8 @@ const CYAN := Color("#7fe7ff")
 const PINK := Color("#ff9ad5")
 const RED := Color("#ff5a4f")
 const GREEN := Color("#7cf29c")
+const VIOLET := Color("#b197fc")
+const AMBER := Color("#ff922b")
 
 const FONT_SMALL := 22
 const FONT_BODY := 26
@@ -58,6 +60,9 @@ static func button_style(bg: Color, border: Color, border_width: int = 3) -> Sty
 	style.border_color = border
 	style.set_border_width_all(border_width)
 	style.set_corner_radius_all(10)
+	style.shadow_color = Color(0.01, 0.02, 0.06, 0.5)
+	style.shadow_size = 8
+	style.shadow_offset = Vector2(0, 4)
 	style.content_margin_left = 26
 	style.content_margin_right = 26
 	style.content_margin_top = 12
@@ -71,8 +76,15 @@ static func panel_style(bg: Color = Color(0.05, 0.06, 0.11, 0.92), border: Color
 	style.border_color = border
 	style.set_border_width_all(3)
 	style.set_corner_radius_all(radius)
+	style.shadow_color = Color(0.01, 0.02, 0.06, 0.58)
+	style.shadow_size = 16
+	style.shadow_offset = Vector2(0, 8)
 	style.set_content_margin_all(28)
 	return style
+
+
+static func accent_style(color: Color, bg: Color = Color(0.05, 0.06, 0.11, 0.96)) -> StyleBoxFlat:
+	return panel_style(bg, Color(color.r, color.g, color.b, 0.75), 14)
 
 
 static func label(text: String, font_size: int = FONT_BODY, color: Color = INK, align: int = HORIZONTAL_ALIGNMENT_LEFT) -> Label:

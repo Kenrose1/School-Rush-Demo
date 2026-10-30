@@ -472,6 +472,15 @@ func _test_live_collisions() -> void:
 	_check_eq(world.item_count, 1, "walking into a school item collects it (Area2D overlap)")
 	_check_eq(world.score, 100, "collected item awards score")
 
+	world._spawn_hazard(Hazard.Kind.CONE, GameConfig.clamp_lane(lane - 1), 0.0)
+	var adjacent_hazard := world.entities.get_child(world.entities.get_child_count() - 1) as Hazard
+	adjacent_hazard.position = Vector2(world.player.position.x, GameConfig.lane_y(lane))
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check_eq(world.player.hearts, 3, "an obstacle from another lane does not cause damage")
+	adjacent_hazard.call_deferred("queue_free")
+	await get_tree().physics_frame
+
 	world._spawn_hazard(Hazard.Kind.CONE, lane, 0.0)
 	var hazard := world.entities.get_child(world.entities.get_child_count() - 1) as Hazard
 	hazard.position = Vector2(world.player.position.x, GameConfig.lane_y(lane))
