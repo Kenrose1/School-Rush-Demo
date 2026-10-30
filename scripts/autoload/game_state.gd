@@ -21,9 +21,11 @@ func begin_run(mode: int) -> void:
 
 func finish_run(results: Dictionary) -> void:
 	last_results = results.duplicate(true)
+	var mode := int(results.get("mode", selected_mode))
+	var score := int(results.get("score", 0))
 	last_run_was_best = SaveManager.record_run(
-		int(results.get("mode", selected_mode)),
-		int(results.get("score", 0)),
+		mode,
+		score,
 		float(results.get("distance_m", 0.0))
 	)
 

@@ -14,6 +14,13 @@ var best_score_continuous: int = 0
 var best_score_training: int = 0
 var best_distance_continuous: float = 0.0
 var runs_played: int = 0
+var shop_points: int = 0
+var shop_levels: Dictionary = {
+	"speed": 0,
+	"recovery": 0,
+	"dash": 0,
+	"score": 0,
+}
 
 
 func _ready() -> void:
@@ -35,6 +42,9 @@ func load_config() -> void:
 	best_score_training = int(config.get_value("records", "training", best_score_training))
 	best_distance_continuous = float(config.get_value("records", "continuous_distance", best_distance_continuous))
 	runs_played = int(config.get_value("records", "runs", runs_played))
+	shop_points = maxi(0, int(config.get_value("shop", "points", shop_points)))
+	for upgrade in GameConfig.SHOP_UPGRADES:
+		shop_levels[upgrade] = clampi(int(config.get_value("shop", upgrade, shop_levels.get(upgrade, 0))), 0, GameConfig.SHOP_MAX_LEVEL)
 
 
 func save_config() -> void:
@@ -49,6 +59,9 @@ func save_config() -> void:
 	config.set_value("records", "training", best_score_training)
 	config.set_value("records", "continuous_distance", best_distance_continuous)
 	config.set_value("records", "runs", runs_played)
+	config.set_value("shop", "points", shop_points)
+	for upgrade in GameConfig.SHOP_UPGRADES:
+		config.set_value("shop", upgrade, get_shop_level(upgrade))
 	var err := config.save(GameConfig.SAVE_PATH)
 	if err != OK:
 		push_warning("Could not write %s (error %d)" % [GameConfig.SAVE_PATH, err])
@@ -95,6 +108,48 @@ func best_score_for(mode: int) -> int:
 			return best_score_training
 
 
+func get_shop_level(upgrade: String) -> int:
+	return clampi(int(shop_levels.get(upgrade, 0)), 0, GameConfig.SHOP_MAX_LEVEL)
+
+
+func get_shop_cost(upgrade: String) -> int:
+	return GameConfig.shop_cost(get_shop_level(upgrade))
+
+
+func purchase_upgrade(upgrade: String) -> bool:
+	if not GameConfig.SHOP_UPGRADES.has(upgrade):
+		return false
+	var level := get_shop_level(upgrade)
+	var cost := GameConfig.shop_cost(level)
+	if level >= GameConfig.SHOP_MAX_LEVEL or shop_points < cost:
+		return false
+	shop_points -= cost
+	shop_levels[upgrade] = level + 1
+	save_config()
+	return true
+
+
+func add_shop_points(amount: int) -> void:
+	shop_points = maxi(0, shop_points + maxi(0, amount))
+	save_config()
+
+
+func shop_speed_bonus() -> float:
+	return float(get_shop_level("speed")) * 25.0
+
+
+func shop_hit_speed_multiplier() -> float:
+	return minf(0.9, GameConfig.HIT_SPEED_MULT + float(get_shop_level("recovery")) * 0.05)
+
+
+func shop_dash_cooldown() -> float:
+	return maxf(4.0, GameConfig.DASH_COOLDOWN - float(get_shop_level("dash")) * 0.6)
+
+
+func shop_score_multiplier() -> float:
+	return 1.0 + float(get_shop_level("score")) * 0.1
+
+
 ## Returns true when this run set a new personal record.
 func record_run(mode: int, score: int, distance_m: float) -> bool:
 	runs_played += 1
@@ -122,5 +177,8 @@ func reset_records() -> void:
 	best_score_continuous = 0
 	best_score_training = 0
 	best_distance_continuous = 0.0
+	shop_points = 0
+	for upgrade in GameConfig.SHOP_UPGRADES:
+		shop_levels[upgrade] = 0
 	tutorial_seen = false
 	save_config()

@@ -11,6 +11,7 @@ enum Phase { INTRO, RUNNING, ENDED }
 
 const HAZARD_SCENE := preload("res://scenes/hazard.tscn")
 const ITEM_SCENE := preload("res://scenes/collectible.tscn")
+const COIN_SCENE := preload("res://scenes/coin.tscn")
 const COUNTDOWN_TIME := 2.6
 
 @onready var backdrop: ZoneBackdrop = $Backdrop
@@ -30,6 +31,7 @@ var speed: float = GameConfig.BASE_SPEED[0]
 var speed_mult: float = 1.0
 var score: int = 0
 var item_count: int = 0
+var coin_count: int = 0
 var combo: int = 1
 var max_combo: int = 1
 var hearts: int = GameConfig.MAX_HEARTS
@@ -49,9 +51,11 @@ func _ready() -> void:
 	player.hit_taken.connect(_on_player_hit)
 	player.defeated.connect(_on_player_defeated)
 	player.item_picked.connect(_on_item_picked)
+	player.coin_picked.connect(_on_coin_picked)
 	pursuer.caught_player.connect(_on_pursuer_caught)
 	spawner.hazard_requested.connect(_spawn_hazard)
 	spawner.item_line_requested.connect(_spawn_item_line)
+	spawner.coin_line_requested.connect(_spawn_coin_line)
 	spawner.tutorial_prompt.connect(_on_tutorial_prompt)
 	hud.pause_button_pressed.connect(func() -> void: pause_requested.emit())
 
@@ -65,12 +69,13 @@ func start_run(run_mode: int) -> void:
 	elapsed = 0.0
 	score = 0
 	item_count = 0
+	coin_count = 0
 	combo = 1
 	max_combo = 1
 	hearts = GameConfig.MAX_HEARTS
 	zone = GameConfig.Zone.HOME
 	speed_mult = 1.0
-	speed = GameConfig.base_speed_for_zone(zone)
+	speed = GameConfig.base_speed_for_zone(zone) + SaveManager.shop_speed_bonus()
 	victory = false
 	end_reason = ""
 	_ended_timer = 0.0
@@ -113,7 +118,7 @@ func _process(delta: float) -> void:
 func _update_run(delta: float) -> void:
 	elapsed += delta
 	speed_mult = move_toward(speed_mult, 1.0, GameConfig.SPEED_RECOVERY * delta)
-	var zone_base: float = GameConfig.base_speed_for_zone(zone)
+	var zone_base: float = GameConfig.base_speed_for_zone(zone) + SaveManager.shop_speed_bonus()
 	if mode == GameConfig.Mode.CONTINUOUS:
 		zone_base += GameConfig.CONTINUOUS_RAMP * elapsed
 	speed = clampf(zone_base * speed_mult, 150.0, GameConfig.SPEED_MAX)
@@ -180,6 +185,7 @@ func _hud_data() -> Dictionary:
 		"hearts": player.hearts,
 		"combo": combo,
 		"items": item_count,
+		"coins": coin_count,
 		"speed": speed,
 		"speed_max": GameConfig.SPEED_MAX,
 		"distance": distance_m,
@@ -215,6 +221,15 @@ func _spawn_item_line(kind: String, lane: int, count: int) -> void:
 		entities.add_child(item)
 
 
+func _spawn_coin_line(lane: int, value: int, count: int) -> void:
+	for i in count:
+		var coin := COIN_SCENE.instantiate()
+		coin.lane = lane
+		coin.value = value
+		coin.position = Vector2(SpawnDirector.SPAWN_X + 40.0 + float(i) * 76.0, GameConfig.lane_y(lane) - 74.0)
+		entities.add_child(coin)
+
+
 func _clear_entities() -> void:
 	for child in entities.get_children():
 		child.queue_free()
@@ -242,8 +257,9 @@ func _on_item_picked(_kind: String, world_position: Vector2) -> void:
 	var combo_up := new_combo > combo
 	combo = new_combo
 	max_combo = maxi(max_combo, combo)
-	score += GameConfig.score_for_item(combo)
-	hud.spawn_score_popup(world_position, GameConfig.score_for_item(combo))
+	var item_score := int(roundf(GameConfig.score_for_item(combo) * SaveManager.shop_score_multiplier()))
+	score += item_score
+	hud.spawn_score_popup(world_position, item_score)
 	if combo_up:
 		hud.show_combo_badge(combo)
 		AudioDirector.play_sfx("combo")
@@ -251,12 +267,21 @@ func _on_item_picked(_kind: String, world_position: Vector2) -> void:
 		AudioDirector.play_sfx("pickup")
 
 
+func _on_coin_picked(value: int, world_position: Vector2) -> void:
+	if phase != Phase.RUNNING:
+		return
+	SaveManager.add_shop_points(value)
+	coin_count += value
+	hud.spawn_coin_popup(world_position, value)
+	AudioDirector.play_sfx("pickup")
+
+
 func _on_player_hit(hearts_left: int) -> void:
 	if phase != Phase.RUNNING:
 		return
 	hearts = hearts_left
 	combo = 1
-	speed_mult = GameConfig.HIT_SPEED_MULT
+	speed_mult = SaveManager.shop_hit_speed_multiplier()
 	var fatal := pursuer.is_active()
 	hud.flash_damage()
 	on_shake(1.0)

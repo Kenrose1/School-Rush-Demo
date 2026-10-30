@@ -47,6 +47,7 @@ Target resolution is 1920×1080 at 60 FPS; the window opens at 1280×720 and sca
 - **3 hearts**, one per damaging hit, **1.5 s invulnerability** after each hit, **AABB hitbox 10 % smaller** than the sprite.
 - **Pursuer Entity**: dormant by default; spawns behind Elias on a hit, matches his slowed speed, fades out over 2.5 s once full speed is recovered. A second hit while it is active triggers a lunge and **instant Game Over regardless of hearts**.
 - **School items**: overlap pickup, no interaction button; each is worth `100 × combo`; the multiplier rises every 5 items up to **5×** and resets on a damaging hit.
+- **Shop**: the home screen includes a persistent shop funded by collectible coins. Normal coins are worth 10 shop points and rare coins are worth 50; coins appear in moderate lines during runs. School-item score remains separate, and Running Shoes, Padded Backpack, Energy Drink and Lucky Charm upgrades have five levels and apply to the next run.
 - **Hazards**: 12 types across the three zones, including ground hazards (jump or dodge), overhead hazards (slide or dodge), and lane‑locked moving hazards (skateboard, vacuum, pet, motorcycle).
 - **HUD**: score, hearts, combo, item count, speed meter, dash/cooldown meter, Standard‑only distance meter, pursuer warning, damage flash, i‑frame cue, countdown, zone badges and results banners.
 - **Menus**: main menu with personal records, pause (resume / restart / options / main menu), options (music, SFX, screen shake, fullscreen), How to Play, results with Retry.
@@ -81,7 +82,7 @@ World, hazard, and pursuer visuals are drawn procedurally with Godot canvas prim
 godot --headless --path . res://tests/test_runner.tscn
 ```
 
-Current result: **155 checks, 0 failures**, covering the input map, lane clamping, jump arc and slide hitbox, i‑frames, combo and score math, zone mapping, 3000 fuzzed spawn patterns, pursuer state machine and lunge, save/load round‑trip, audio asset decoding, scene instantiation, a scripted run integration test, mode end conditions, **lane-specific live Area2D pickup/damage plus jump-over and slide-under clearance**, and the full menu → run → pause → menu flow.
+Current result: **170 checks, 0 failures**, covering the input map, lane clamping, jump arc and slide hitbox, i‑frames, combo and score math, collectible coin values and shop pickups, shop purchases and caps, zone mapping, 3000 fuzzed spawn patterns, pursuer state machine and lunge, save/load round‑trip, audio asset decoding, scene instantiation, a scripted run integration test, mode end conditions, **lane-specific live Area2D pickup/damage plus jump-over and slide-under clearance**, and the full menu → shop → run → pause → menu flow.
 
 ## Regenerating audio
 
@@ -109,3 +110,4 @@ godot --headless --path . --export-release "Windows Desktop" build/windows/Schoo
 - A rendered visual check was not possible in the build environment used here (headless Linux VM with no GPU/X server). The draw pass itself does run headless — every menu/HUD/zone `_draw` executes without errors and the default font loads — and gameplay is covered by physics‑level tests, but colors, spacing and text fit still deserve a final look in the Godot editor on a desktop.
 - The dash key is **Left Shift**; the GDD defines the dash mechanic but does not assign a key.
 - The optional in‑editor level placement plugin described in GDD Section IX is not included; hazards are spawned by the data‑driven `SpawnDirector`.
+- Shop icon references: [Kenney Pixel Platformer](https://kenney.nl/assets/pixel-platformer) and [Kenney UI Pack](https://kenney.nl/assets/ui-pack), both released under CC0. The current shop uses a matching vector fallback until individual pack sprites are selected.

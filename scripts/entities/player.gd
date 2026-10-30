@@ -11,6 +11,7 @@ signal dashed
 signal hit_taken(hearts_left: int)
 signal defeated
 signal item_picked(kind: String, world_position: Vector2)
+signal coin_picked(value: int, world_position: Vector2)
 
 @export var lane: int = 1
 @export var max_hearts: int = GameConfig.MAX_HEARTS
@@ -148,7 +149,7 @@ func try_dash() -> bool:
 	if dash_cooldown > 0.0 or dash_timer > 0.0:
 		return false
 	dash_timer = GameConfig.DASH_TIME
-	dash_cooldown = GameConfig.DASH_COOLDOWN
+	dash_cooldown = SaveManager.shop_dash_cooldown()
 	invuln_timer = maxf(invuln_timer, GameConfig.DASH_TIME)
 	dashed.emit()
 	AudioDirector.play_sfx("dash")
@@ -234,6 +235,11 @@ func get_hitbox_rect() -> Rect2:
 
 func _on_hitbox_area_entered(area: Area2D) -> void:
 	if area == null:
+		return
+	if area.has_method("is_coin") and area.is_coin():
+		if int(area.lane) == lane:
+			coin_picked.emit(int(area.value), area.global_position)
+			area.collect()
 		return
 	if not area.has_method("is_hazard") and not area.has_method("is_collectible"):
 		return

@@ -5,6 +5,7 @@ extends Node
 
 signal hazard_requested(kind: int, lane: int, extra_speed: float)
 signal item_line_requested(kind: String, lane: int, count: int)
+signal coin_line_requested(lane: int, value: int, count: int)
 signal tutorial_prompt(text: String)
 
 const SPAWN_X := 2140.0
@@ -18,8 +19,9 @@ var rng := RandomNumberGenerator.new()
 
 var _hazard_timer: float = 1.4
 var _item_timer: float = 1.0
+var _coin_timer: float = 2.2
 var _tutorial_step: int = 0
-var _tutorial_distances: Array[float] = [30.0, 70.0, 110.0, 140.0]
+var _tutorial_distances: Array[float] = [30.0, 70.0, 110.0, 140.0, 175.0]
 
 
 func _ready() -> void:
@@ -33,6 +35,7 @@ func set_zone(new_zone: int) -> void:
 func reset() -> void:
 	_hazard_timer = 1.6
 	_item_timer = 1.2
+	_coin_timer = 2.2
 	_tutorial_step = 0
 
 
@@ -41,6 +44,7 @@ func _process(delta: float) -> void:
 		return
 	_hazard_timer -= delta
 	_item_timer -= delta
+	_coin_timer -= delta
 	if _hazard_timer <= 0.0:
 		spawn_pattern()
 		var base := lerpf(1.45, 0.72, clampf(difficulty, 0.0, 1.0))
@@ -50,6 +54,9 @@ func _process(delta: float) -> void:
 	if _item_timer <= 0.0:
 		spawn_item_line()
 		_item_timer = rng.randf_range(1.5, 2.4)
+	if _coin_timer <= 0.0:
+		spawn_coin_line()
+		_coin_timer = rng.randf_range(2.0, 3.0)
 
 
 ## Emits a guaranteed-passable hazard pattern.
@@ -111,6 +118,12 @@ func spawn_item_line() -> void:
 	item_line_requested.emit(kind, lane, count)
 
 
+func spawn_coin_line() -> void:
+	var lane := rng.randi_range(0, 2)
+	var value := GameConfig.COIN_RARE_VALUE if rng.randf() < 0.15 else GameConfig.COIN_NORMAL_VALUE
+	coin_line_requested.emit(lane, value, rng.randi_range(1, 3))
+
+
 ## Tutorial beats: short contextual prompts fired at fixed distances.
 func check_tutorial(distance_m: float) -> void:
 	if not training or _tutorial_step >= _tutorial_distances.size():
@@ -125,6 +138,8 @@ func check_tutorial(distance_m: float) -> void:
 				tutorial_prompt.emit("LEFT CTRL slides under overhead hazards.")
 			3:
 				tutorial_prompt.emit("SHIFT dashes (1.5s shield). A second hit with the Pursuer = GAME OVER.")
+			4:
+				tutorial_prompt.emit("Collect coins for the Shop. Gold coins are worth more!")
 		_tutorial_step += 1
 
 

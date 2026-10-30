@@ -123,7 +123,12 @@ func show_zone_badge(label: String, color: Color) -> void:
 
 func spawn_score_popup(world_position: Vector2, amount: int) -> void:
 	var screen := get_viewport().get_canvas_transform() * world_position
-	_popups.append({"pos": screen + Vector2(0, -40), "value": amount, "t": 0.0})
+	_popups.append({"pos": screen + Vector2(0, -40), "value": amount, "t": 0.0, "color": GOLD})
+
+
+func spawn_coin_popup(world_position: Vector2, amount: int) -> void:
+	var screen := get_viewport().get_canvas_transform() * world_position
+	_popups.append({"pos": screen + Vector2(0, -40), "value": amount, "t": 0.0, "color": Color("#ffd43b"), "coin": true})
 
 
 func show_combo_badge(combo: int) -> void:
@@ -212,6 +217,8 @@ func _draw_top_left(font: Font) -> void:
 	var combo := int(data.get("combo", 1))
 	_draw_item_icon(Vector2(78, 196))
 	_text(font, Vector2(112, 214), "x%d" % items, 36, INK)
+	_draw_coin_icon(Vector2(78, 306))
+	_text(font, Vector2(112, 324), "x%d" % int(data.get("coins", 0)), 32, GOLD)
 	if combo > 1:
 		var pop := 1.0 + maxf(0.0, _combo_timer) * 0.12
 		var badge_rect := Rect2(232, 176, 122, 50)
@@ -233,6 +240,13 @@ func _draw_hearts(origin: Vector2) -> void:
 	if hearts == 1:
 		var pulse := 0.5 + 0.5 * sin(_time * 8.0)
 		draw_arc(origin + Vector2(48, -8), 62.0, 0.0, TAU, 30, Color(1, 0.2, 0.2, 0.35 * pulse), 4.0)
+
+
+func _draw_coin_icon(pos: Vector2) -> void:
+	draw_circle(pos, 21.0, Color("#171325"))
+	draw_circle(pos, 17.0, GOLD)
+	draw_arc(pos, 17.0, 0.0, TAU, 20, Color("#fff3bf"), 2.0)
+	_text_centered_box(ThemeDB.fallback_font, Rect2(pos - Vector2(18, 18), Vector2(36, 36)), "$", 20, Color("#8f5b00"))
 
 
 func _draw_heart(center: Vector2, size: float, color: Color) -> void:
@@ -365,9 +379,11 @@ func _draw_popups(font: Font) -> void:
 	for popup in _popups:
 		var t := float(popup["t"])
 		var alpha := clampf(1.0 - t / 0.9, 0.0, 1.0)
+		var popup_color: Color = popup.get("color", GOLD)
+		var suffix := " COINS" if bool(popup.get("coin", false)) else ""
 		_text_centered_box(
 			font, Rect2(Vector2(popup["pos"]) - Vector2(70, 24), Vector2(140, 40)),
-			"+%d" % int(popup["value"]), 30, Color(GOLD.r, GOLD.g, GOLD.b, alpha)
+			"+%d%s" % [int(popup["value"]), suffix], 26 if suffix else 30, Color(popup_color.r, popup_color.g, popup_color.b, alpha)
 		)
 
 

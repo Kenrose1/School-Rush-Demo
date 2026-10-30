@@ -6,11 +6,13 @@ extends Node
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
 const HAZARD_SCENE := preload("res://scenes/hazard.tscn")
 const ITEM_SCENE := preload("res://scenes/collectible.tscn")
+const COIN_SCENE := preload("res://scenes/coin.tscn")
 const PURSUER_SCENE := preload("res://scenes/pursuer.tscn")
 const RUN_SCENE := preload("res://scenes/run_world.tscn")
 const MENU_SCENE := preload("res://scenes/main_menu.tscn")
 const HUD_SCENE := preload("res://scenes/hud.tscn")
 const CUTSCENE_SCENE := preload("res://scenes/cutscene.tscn")
+const SHOP_PANEL_SCRIPT := preload("res://scripts/ui/shop_panel.gd")
 
 var _checks: int = 0
 var _failures: Array[String] = []
@@ -29,6 +31,8 @@ func _ready() -> void:
 	await _test_spawn_fuzzing()
 	await _test_pursuer()
 	await _test_save_roundtrip()
+	await _test_shop_upgrades()
+	await _test_shop_rewards()
 	await _test_audio_assets()
 	await _test_scenes()
 	await _test_run_world_integration()
@@ -163,6 +167,8 @@ func _test_jump_and_slide() -> void:
 
 
 func _test_health_and_iframes() -> void:
+	var original_recovery_level := SaveManager.get_shop_level("recovery")
+	SaveManager.shop_levels["recovery"] = 0
 	var player := await _make_player()
 	_check_eq(player.hearts, 3, "run starts with 3 hearts")
 	_check(player.take_hit(), "first hit lands")
@@ -183,6 +189,7 @@ func _test_health_and_iframes() -> void:
 	_check(not player.take_hit(), "no further damage after defeat")
 	player.queue_free()
 	await get_tree().process_frame
+	SaveManager.shop_levels["recovery"] = original_recovery_level
 
 
 func _test_hitbox_and_layers() -> void:
@@ -306,6 +313,47 @@ func _test_save_roundtrip() -> void:
 	_check(FileAccess.file_exists(GameConfig.SAVE_PATH), "save.cfg exists after writing")
 
 
+func _test_shop_upgrades() -> void:
+	var original_points := SaveManager.shop_points
+	var original_levels := SaveManager.shop_levels.duplicate(true)
+	for upgrade in GameConfig.SHOP_UPGRADES:
+		SaveManager.shop_levels[upgrade] = 0
+	SaveManager.shop_points = GameConfig.shop_cost(0)
+	_check(SaveManager.purchase_upgrade("speed"), "shop purchase succeeds with enough score points")
+	_check_eq(SaveManager.get_shop_level("speed"), 1, "speed upgrade level increases")
+	_check_eq(SaveManager.shop_points, 0, "shop purchase deducts its cost")
+	_check(not SaveManager.purchase_upgrade("speed"), "shop rejects purchases without enough points")
+	SaveManager.shop_points = 999999
+	for i in GameConfig.SHOP_MAX_LEVEL:
+		SaveManager.purchase_upgrade("dash")
+	_check_eq(SaveManager.get_shop_level("dash"), GameConfig.SHOP_MAX_LEVEL, "shop upgrade reaches its level cap")
+	_check(not SaveManager.purchase_upgrade("dash"), "shop rejects purchases at the level cap")
+	_check(SaveManager.shop_speed_bonus() > 0.0, "speed upgrade changes run speed")
+	_check(SaveManager.shop_dash_cooldown() < GameConfig.DASH_COOLDOWN, "dash upgrade shortens cooldown")
+	SaveManager.shop_points = original_points
+	SaveManager.shop_levels = original_levels
+	SaveManager.save_config()
+
+
+func _test_shop_rewards() -> void:
+	var original_points := SaveManager.shop_points
+	SaveManager.shop_points = 100
+	var coin := COIN_SCENE.instantiate()
+	coin.value = GameConfig.COIN_NORMAL_VALUE
+	add_child(coin)
+	await get_tree().process_frame
+	_check(coin.is_coin(), "coin reports itself as a money pickup")
+	_check_eq(coin.value, 10, "normal coin has fixed value")
+	coin.value = GameConfig.COIN_RARE_VALUE
+	_check_eq(coin.value, 50, "rare coin has fixed value")
+	coin.queue_free()
+	_check_eq(SaveManager.shop_points, 100, "score does not award shop points at run end")
+	SaveManager.add_shop_points(GameConfig.COIN_NORMAL_VALUE)
+	_check_eq(SaveManager.shop_points, 110, "collecting a coin adds its fixed value")
+	SaveManager.shop_points = original_points
+	SaveManager.save_config()
+
+
 func _test_audio_assets() -> void:
 	for track in ["music_menu", "music_home", "music_street", "music_hallway", "music_drive"]:
 		var path := "res://assets/audio/%s.wav" % track
@@ -319,7 +367,7 @@ func _test_audio_assets() -> void:
 
 
 func _test_scenes() -> void:
-	for scene in [MENU_SCENE, HUD_SCENE, CUTSCENE_SCENE, RUN_SCENE]:
+	for scene in [MENU_SCENE, HUD_SCENE, CUTSCENE_SCENE, RUN_SCENE, COIN_SCENE]:
 		var instance: Node = scene.instantiate()
 		_check(instance != null, "scene instantiates: %s" % instance.scene_file_path)
 		instance.queue_free()
@@ -327,6 +375,10 @@ func _test_scenes() -> void:
 
 
 func _test_run_world_integration() -> void:
+	var original_score_level := SaveManager.get_shop_level("score")
+	var original_recovery_level := SaveManager.get_shop_level("recovery")
+	SaveManager.shop_levels["score"] = 0
+	SaveManager.shop_levels["recovery"] = 0
 	var world := RUN_SCENE.instantiate() as RunWorld
 	add_child(world)
 	await get_tree().process_frame
@@ -361,6 +413,8 @@ func _test_run_world_integration() -> void:
 	_check_eq(GameState.last_results.get("victory", true), false, "pursuer catch is a loss")
 	world.queue_free()
 	await get_tree().process_frame
+	SaveManager.shop_levels["score"] = original_score_level
+	SaveManager.shop_levels["recovery"] = original_recovery_level
 
 
 func _test_victory_flow() -> void:
@@ -387,6 +441,11 @@ func _test_main_flow() -> void:
 	await get_tree().process_frame
 	_check_eq(main.screen_root.get_child_count(), 1, "game boots into the main menu")
 	_check(main.run_world == null, "no run exists on the menu")
+	main.open_shop()
+	await get_tree().process_frame
+	_check(main.screen_root.get_child(0).get_script() == SHOP_PANEL_SCRIPT, "shop opens from the home screen")
+	main.show_main_menu()
+	await get_tree().process_frame
 	main._on_mode_selected(GameConfig.Mode.TRAINING)
 	await get_tree().process_frame
 	_check(main.run_world != null, "choosing Training starts a run")
@@ -453,6 +512,8 @@ func _test_mode_rules() -> void:
 
 
 func _test_live_collisions() -> void:
+	var original_score_level := SaveManager.get_shop_level("score")
+	SaveManager.shop_levels["score"] = 0
 	# Real Area2D overlap through the physics server (player hitbox + entities).
 	var world := RUN_SCENE.instantiate() as RunWorld
 	add_child(world)
@@ -545,3 +606,4 @@ func _test_live_collisions() -> void:
 	_check_eq(jumper.player.hearts, 3, "jumping over a ground hazard is safe")
 	jumper.queue_free()
 	await get_tree().process_frame
+	SaveManager.shop_levels["score"] = original_score_level

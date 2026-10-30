@@ -6,6 +6,7 @@ extends Control
 signal mode_selected(mode: int)
 signal options_requested
 signal help_requested
+signal shop_requested
 signal quit_requested
 
 var _time: float = 0.0
@@ -74,15 +75,17 @@ func _build_ui() -> void:
 	var standard := UiKit.button("STANDARD RUN", true)
 	var continuous := UiKit.button("CONTINUOUS MODE")
 	var training := UiKit.button("TRAINING")
+	var shop := UiKit.button("SHOP")
 	var options := UiKit.button("OPTIONS")
 	var help := UiKit.button("HOW TO PLAY")
 	var quit := UiKit.button("QUIT")
-	for button in [standard, continuous, training, options, help, quit]:
+	for button in [standard, continuous, training, shop, options, help, quit]:
 		button.custom_minimum_size = Vector2(620, 64)
 		_buttons.add_child(button)
 	standard.pressed.connect(func() -> void: mode_selected.emit(GameConfig.Mode.STANDARD))
 	continuous.pressed.connect(func() -> void: mode_selected.emit(GameConfig.Mode.CONTINUOUS))
 	training.pressed.connect(func() -> void: mode_selected.emit(GameConfig.Mode.TRAINING))
+	shop.pressed.connect(func() -> void: shop_requested.emit())
 	options.pressed.connect(func() -> void: options_requested.emit())
 	help.pressed.connect(func() -> void: help_requested.emit())
 	quit.pressed.connect(func() -> void: quit_requested.emit())

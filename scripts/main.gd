@@ -5,6 +5,7 @@ extends Node
 const MENU_SCENE := preload("res://scenes/main_menu.tscn")
 const CUTSCENE_SCENE := preload("res://scenes/cutscene.tscn")
 const RUN_SCENE := preload("res://scenes/run_world.tscn")
+const SHOP_SCRIPT := preload("res://scripts/ui/shop_panel.gd")
 
 @onready var screen_root: Node = $ScreenRoot
 @onready var ui_layer: CanvasLayer = $UI
@@ -62,6 +63,7 @@ func show_main_menu() -> void:
 	menu.mode_selected.connect(_on_mode_selected)
 	menu.options_requested.connect(open_options)
 	menu.help_requested.connect(open_help)
+	menu.shop_requested.connect(open_shop)
 	menu.quit_requested.connect(_on_quit)
 	screen_root.add_child(menu)
 
@@ -172,6 +174,14 @@ func open_help() -> void:
 			panel.queue_free()
 	)
 	ui_layer.add_child(help_panel)
+
+
+func open_shop() -> void:
+	_clear_screen()
+	AudioDirector.play_music("music_menu")
+	var shop := SHOP_SCRIPT.new()
+	shop.closed.connect(show_main_menu)
+	screen_root.add_child(shop)
 
 
 func _on_quit() -> void:

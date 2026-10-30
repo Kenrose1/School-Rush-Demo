@@ -52,6 +52,26 @@ const PICKUPS_PER_COMBO := 5
 const SCORE_PER_ITEM := 100
 const ITEM_PICKUP_RADIUS := 46.0
 
+# --- Shop -------------------------------------------------------------------
+const SHOP_MAX_LEVEL := 5
+const SHOP_UPGRADES := ["speed", "recovery", "dash", "score"]
+const SHOP_NAMES := {
+	"speed": "RUNNING SHOES",
+	"recovery": "PADDED BACKPACK",
+	"dash": "ENERGY DRINK",
+	"score": "LUCKY CHARM",
+}
+const SHOP_DESCRIPTIONS := {
+	"speed": "+25 starting speed per level",
+	"recovery": "+0.05 post-hit momentum per level",
+	"dash": "-0.6s dash cooldown per level",
+	"score": "+10% collectible score per level",
+}
+const SHOP_BASE_COST := 600
+const SHOP_COST_STEP := 450
+const COIN_NORMAL_VALUE := 10
+const COIN_RARE_VALUE := 50
+
 # --- Pursuer ----------------------------------------------------------------
 const PURSUER_FADE_TIME := 2.5
 const PURSUER_X_OFFSET := 340.0
@@ -85,6 +105,9 @@ static func score_for_item(combo: int) -> int:
 
 static func base_speed_for_zone(zone: int) -> float:
 	return float(BASE_SPEED[clampi(zone, 0, 2)])
+
+static func shop_cost(level: int) -> int:
+	return SHOP_BASE_COST + maxi(0, level) * SHOP_COST_STEP
 
 static func zone_accent(zone: int) -> Color:
 	return Color(ZONE_ACCENT_HEX[clampi(zone, 0, 2)])
