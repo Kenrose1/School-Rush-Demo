@@ -236,6 +236,20 @@ def sfx_pursuer() -> np.ndarray:
     return low * tremolo * _env(len(t), decay=0.8)
 
 
+def sfx_dog_bark() -> np.ndarray:
+    """Two short, bright barks: a noisy square burst over a low growl."""
+    duration = 0.42
+    out = np.zeros(int(duration * SR))
+    for start, pitch in ((0.0, 180.0), (0.2, 150.0)):
+        burst = (
+            square(pitch, 0.14, 0.16, duty=0.4, decay=2.2)
+            + noise(0.14, 0.14, bright=0.5, decay=2.2, seed=13)
+            + triangle(pitch * 0.5, 0.14, 0.10, decay=2.0)
+        )
+        _add(out, burst, start)
+    return out
+
+
 def sfx_bell() -> np.ndarray:
     duration = 1.1
     out = np.zeros(int(duration * SR))
@@ -285,6 +299,7 @@ def main() -> None:
     _write("sfx_lane.wav", sfx_lane(), peak=0.75)
     _write("sfx_hurt.wav", sfx_hurt(), peak=0.85)
     _write("sfx_pursuer.wav", sfx_pursuer(), peak=0.85)
+    _write("sfx_dog_bark.wav", sfx_dog_bark(), peak=0.85)
     _write("sfx_bell.wav", sfx_bell(), peak=0.8)
     _write("sfx_victory.wav", sfx_victory(), peak=0.85)
     _write("sfx_gameover.wav", sfx_gameover(), peak=0.85)

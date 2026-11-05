@@ -7,6 +7,7 @@ signal hazard_requested(kind: int, lane: int, extra_speed: float)
 signal item_line_requested(kind: String, lane: int, count: int)
 signal coin_line_requested(lane: int, value: int, count: int)
 signal tutorial_prompt(text: String)
+signal dog_requested
 
 const SPAWN_X := 2140.0
 const MIN_GAP := 0.62
@@ -20,6 +21,7 @@ var rng := RandomNumberGenerator.new()
 var _hazard_timer: float = 1.4
 var _item_timer: float = 1.0
 var _coin_timer: float = 2.2
+var _dog_timer: float = GameConfig.DOG_FIRST_DELAY
 var _tutorial_step: int = 0
 var _tutorial_distances: Array[float] = [30.0, 70.0, 110.0, 140.0, 175.0]
 
@@ -36,6 +38,7 @@ func reset() -> void:
 	_hazard_timer = 1.6
 	_item_timer = 1.2
 	_coin_timer = 2.2
+	_dog_timer = GameConfig.DOG_FIRST_DELAY
 	_tutorial_step = 0
 
 
@@ -57,6 +60,18 @@ func _process(delta: float) -> void:
 	if _coin_timer <= 0.0:
 		spawn_coin_line()
 		_coin_timer = rng.randf_range(2.0, 3.0)
+	_dog_timer -= delta
+	if _dog_timer <= 0.0:
+		# Dogs only roam the Home Area and the Neighborhood Street.
+		if zone == GameConfig.Zone.HALLWAY:
+			_dog_timer = 2.0
+		else:
+			_dog_timer = _next_dog_interval()
+			dog_requested.emit()
+
+
+func _next_dog_interval() -> float:
+	return clampf(GameConfig.dog_interval(difficulty) * rng.randf_range(0.9, 1.1), 10.0, 15.0)
 
 
 ## Emits a guaranteed-passable hazard pattern.

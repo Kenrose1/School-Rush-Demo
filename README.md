@@ -1,6 +1,6 @@
 # School Rush
 
-A 2D side‑scrolling, three‑lane arcade runner for **Windows, macOS and Linux**, built in **Godot 4.4** (Compatibility renderer) from the *School Rush — General Game Design Document v1.4* by **ARE STUDIO** (Kenneth Rosell, Hezron Asutilla, Kristyl Faith Enad).
+A 2D side‑scrolling, three‑lane arcade runner for **Windows, macOS and Linux**, built in **Godot 4.7** (Compatibility renderer) from the *School Rush — General Game Design Document v1.4* by **ARE STUDIO** (Kenneth Rosell, Hezron Asutilla, Kristyl Faith Enad).
 
 Elias woke up late. Run through the Home Area, the Neighborhood Street and the School Hallway, dodge hazards across three lanes, collect school items for a combo multiplier, and reach the classroom — or survive as long as possible in Continuous Mode while the Pursuer breathes down your neck.
 
@@ -8,7 +8,7 @@ Elias woke up late. Run through the Home Area, the Neighborhood Street and the S
 
 ## Run it
 
-1. Install **Godot 4.4** (standard build, not .NET — the project uses GDScript only).
+1. Install **Godot 4.7** (standard build, not .NET — the project uses GDScript only).
 2. Open `project.godot`.
 3. Press **F5**.
 
@@ -48,33 +48,35 @@ Target resolution is 1920×1080 at 60 FPS; the window opens at 1280×720 and sca
 - **Pursuer Entity**: dormant by default; spawns behind Elias on a hit, matches his slowed speed, fades out over 2.5 s once full speed is recovered. A second hit while it is active triggers a lunge and **instant Game Over regardless of hearts**.
 - **School items**: overlap pickup, no interaction button; each is worth `100 × combo`; the multiplier rises every 5 items up to **5×** and resets on a damaging hit.
 - **Shop**: the home screen includes a persistent shop funded by collectible coins. Normal coins are worth 10 shop points and rare coins are worth 50; coins appear in moderate lines during runs. School-item score remains separate, and Running Shoes, Padded Backpack, Energy Drink and Lucky Charm upgrades have five levels and apply to the next run.
-- **Hazards**: 12 types across the three zones, including ground hazards (jump or dodge), overhead hazards (slide or dodge), and lane‑locked moving hazards (skateboard, vacuum, pet, motorcycle).
+- **Hazards**: 12 pattern types across the three zones, including ground hazards (jump or dodge), overhead hazards (slide or dodge), and lane‑locked moving hazards (skateboard, vacuum, pet, motorcycle).
+- **Dog lane alert**: every 10–15 s a red alert symbol pulses over a randomly chosen lane for **1.0 s**; the dog then sprints in from the right along that locked lane. If it picked Elias's lane, switch lanes or jump to avoid it; a hit costs 1 heart and activates the Pursuer. Dogs appear in Home and Street in every mode, never in the Hallway, and normal hazards are suppressed only in the warned lane while the event runs; the other two lanes keep spawning.
 - **HUD**: score, hearts, combo, item count, speed meter, dash/cooldown meter, Standard‑only distance meter, pursuer warning, damage flash, i‑frame cue, countdown, zone badges and results banners.
 - **Menus**: main menu with personal records, pause (resume / restart / options / main menu), options (music, SFX, screen shake, fullscreen), How to Play, results with Retry.
 - **Opening cutscene**: wake up → alarm → 8:45 → dash out (skippable with `Space` / `Esc`).
-- **Adaptive chiptune**: 110 BPM Home, 130 BPM Street, 155 BPM Hallway stems cross‑faded by zone, plus a percussion drive layer that fades in with speed. SFX for jump, slide, lane switch, pickup, combo, hurt, dash, bell, pursuer, game over and UI clicks.
+- **Adaptive chiptune**: 110 BPM Home, 130 BPM Street, 155 BPM Hallway stems cross‑faded by zone, plus a percussion drive layer that fades in with speed. SFX for jump, slide, lane switch, pickup, combo, hurt, dash, bell, pursuer, dog bark, game over and UI clicks.
 - **Persistence**: `user://save.cfg` (ConfigFile) stores volumes, fullscreen, screen shake, personal bests and runs played. On Windows this is `%APPDATA%\Godot\app_userdata\School Rush\save.cfg`.
 
 ## Project layout
 
 ```
-project.godot            Godot 4.4 config, input map, autoloads
+project.godot            Godot 4.7 config, input map, autoloads
 scenes/                  main, run_world, player, hazard, collectible, pursuer, hud,
-                         main_menu, cutscene
+                         dog, dog_alert, main_menu, cutscene
 scripts/
   core/game_config.gd    all tuning constants + mode/zone enums
   autoload/              save_manager, game_state, audio_director
-  entities/              player, hazard, collectible, pursuer
+  entities/              player, hazard, collectible, pursuer, dog, dog_alert
   world/                 run_world, spawn_director, zone_backdrop, zone_layer
   ui/                    hud, main_menu, pause_menu, options_panel, help_panel,
                          results_screen, cutscene, ui_kit
 assets/audio/            generated chiptune stems + SFX (WAV)
 assets/backgrounds/      opening cutscene bedroom background (PNG)
+assets/characters/dog/   6-frame dog walk sheet + 14-frame alert symbol (PNG)
 tests/                   headless test suite
 tools/gen_audio.py       offline chiptune/SFX generator
 ```
 
-World, hazard, and pursuer visuals are drawn procedurally with Godot canvas primitives (`_draw`). The playable Elias character uses the sprite sheet in `assets/characters/elias_sheet.png`; it is a project-local asset with no external runtime dependency. The UI uses a shared neon arcade-school visual system with layered panels, consistent accents, HUD information zones, and stronger lane readability.
+World, hazard, and pursuer visuals are drawn procedurally with Godot canvas primitives (`_draw`). The playable Elias character and the charging dog use project-local sprite sheets (`assets/characters/elias_sheet.png` and `assets/characters/dog/Walk.png`) with no external runtime dependency. The dog's `walk` and the alert's `alert` frame animations are `AnimationPlayer` resources inside their scenes, so both can be previewed in the editor's Animation dock. The UI uses a shared neon arcade-school visual system with layered panels, consistent accents, HUD information zones, and stronger lane readability.
 
 ## Tests
 
@@ -82,7 +84,7 @@ World, hazard, and pursuer visuals are drawn procedurally with Godot canvas prim
 godot --headless --path . res://tests/test_runner.tscn
 ```
 
-Current result: **170 checks, 0 failures**, covering the input map, lane clamping, jump arc and slide hitbox, i‑frames, combo and score math, collectible coin values and shop pickups, shop purchases and caps, zone mapping, 3000 fuzzed spawn patterns, pursuer state machine and lunge, save/load round‑trip, audio asset decoding, scene instantiation, a scripted run integration test, mode end conditions, **lane-specific live Area2D pickup/damage plus jump-over and slide-under clearance**, and the full menu → shop → run → pause → menu flow.
+Current result: **230 checks, 0 failures**, covering the input map, lane clamping, jump arc and slide hitbox, i‑frames, combo and score math, collectible coin values and shop pickups, shop purchases and caps, zone mapping, 3000 fuzzed spawn patterns, pursuer state machine and lunge, save/load round‑trip, audio asset decoding, scene instantiation, a scripted run integration test, mode end conditions, **lane-specific live Area2D pickup/damage plus jump-over and slide-under clearance**, the **dog random-lane alert flow, lane lock, clearance gate, lane-only hazard suppression, spawn-rule gate and dog collision (jumping clears it, sliding does not)**, and the full menu → shop → run → pause → menu flow.
 
 ## Regenerating audio
 

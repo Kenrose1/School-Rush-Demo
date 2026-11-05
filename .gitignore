@@ -5,3 +5,5 @@ build/
 # Local editor/OS noise
 *.tmp
 .DS_Store
+.opencode/
+

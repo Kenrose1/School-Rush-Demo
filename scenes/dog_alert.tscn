@@ -1,0 +1,41 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/entities/dog_alert.gd" id="1_alert"]
+[ext_resource type="Texture2D" path="res://assets/characters/dog/symbol_alert_001_large_red/alert.png" id="2_alert"]
+
+[sub_resource type="Animation" id="Animation_alert"]
+resource_name = "alert"
+length = 0.875
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Sprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.0625, 0.125, 0.1875, 0.25, 0.3125, 0.375, 0.4375, 0.5, 0.5625, 0.625, 0.6875, 0.75, 0.8125),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+"update": 1,
+"values": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_alert"]
+_data = {
+&"alert": SubResource("Animation_alert")
+}
+
+[node name="DogAlert" type="Node2D"]
+script = ExtResource("1_alert")
+
+[node name="Sprite" type="Sprite2D" parent="."]
+texture = ExtResource("2_alert")
+hframes = 14
+texture_filter = 1
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+root_node = NodePath("..")
+libraries = {
+&"": SubResource("AnimationLibrary_alert")
+}
+autoplay = "alert"

@@ -10,7 +10,7 @@ const SFX_POOL_SIZE := 10
 const ZONE_TRACKS := ["music_home", "music_street", "music_hallway"]
 const SFX_NAMES := [
 	"jump", "slide", "lane", "pickup", "combo", "hurt", "dash",
-	"bell", "gameover", "click", "pursuer", "victory",
+	"bell", "gameover", "click", "pursuer", "victory", "dog_bark",
 ]
 
 var _music_a: AudioStreamPlayer

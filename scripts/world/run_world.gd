@@ -8,10 +8,13 @@ signal pause_requested
 signal shake_requested(strength: float)
 
 enum Phase { INTRO, RUNNING, ENDED }
+enum DogState { IDLE, WAITING, WARNING, RUNNING }
 
 const HAZARD_SCENE := preload("res://scenes/hazard.tscn")
 const ITEM_SCENE := preload("res://scenes/collectible.tscn")
 const COIN_SCENE := preload("res://scenes/coin.tscn")
+const DOG_SCENE := preload("res://scenes/dog.tscn")
+const DOG_ALERT_SCENE := preload("res://scenes/dog_alert.tscn")
 const COUNTDOWN_TIME := 2.6
 
 @onready var backdrop: ZoneBackdrop = $Backdrop
@@ -41,6 +44,13 @@ var victory: bool = false
 var end_reason: String = ""
 var _shake: float = 0.0
 var _ended_timer: float = 0.0
+var _dog_state: int = DogState.IDLE
+var _dog_lane: int = -1
+var _dog_retry: float = 0.0
+var _dog_warning: float = 0.0
+var _dog_alert: DogAlert = null
+var _dog: Dog = null
+var _dog_hint_shown: bool = false
 
 
 func _ready() -> void:
@@ -57,6 +67,7 @@ func _ready() -> void:
 	spawner.item_line_requested.connect(_spawn_item_line)
 	spawner.coin_line_requested.connect(_spawn_coin_line)
 	spawner.tutorial_prompt.connect(_on_tutorial_prompt)
+	spawner.dog_requested.connect(_on_dog_requested)
 	hud.pause_button_pressed.connect(func() -> void: pause_requested.emit())
 
 
@@ -88,6 +99,7 @@ func start_run(run_mode: int) -> void:
 	spawner.difficulty = 0.0
 	spawner.enabled = true
 	_clear_entities()
+	_reset_dog_event()
 	if mode == GameConfig.Mode.TRAINING:
 		target_distance = GameConfig.TRAINING_DISTANCE_M
 	else:
@@ -136,6 +148,8 @@ func _update_run(delta: float) -> void:
 		AudioDirector.play_zone_music(zone)
 		hud.set_zone_label(GameConfig.ZONE_NAMES[zone], GameConfig.zone_accent(zone))
 		hud.show_zone_badge(GameConfig.ZONE_NAMES[zone], GameConfig.zone_accent(zone))
+		if zone == GameConfig.Zone.HALLWAY and _dog_state != DogState.RUNNING:
+			_clear_dog_event()
 
 	# Difficulty rises with both speed and distance.
 	var diff := clampf((speed - 430.0) / (GameConfig.SPEED_MAX - 430.0), 0.0, 1.0) * 0.7
@@ -144,6 +158,7 @@ func _update_run(delta: float) -> void:
 		diff = minf(diff, 0.25)
 	spawner.difficulty = diff
 	spawner.check_tutorial(distance_m)
+	_update_dog_event(delta)
 
 	_advance_entities(delta)
 	backdrop.advance(delta, speed, clampf((speed - 300.0) / 680.0, 0.0, 1.0))
@@ -203,6 +218,9 @@ func _hud_data() -> Dictionary:
 # --- Spawning ---------------------------------------------------------------
 
 func _spawn_hazard(kind: int, lane: int, extra_speed: float) -> void:
+	# Keep the dog's lane clear for the whole event.
+	if _dog_lane >= 0 and lane == _dog_lane:
+		return
 	var hazard := HAZARD_SCENE.instantiate() as Hazard
 	hazard.kind = kind
 	hazard.lane = lane
@@ -233,6 +251,105 @@ func _spawn_coin_line(lane: int, value: int, count: int) -> void:
 func _clear_entities() -> void:
 	for child in entities.get_children():
 		child.queue_free()
+
+
+# --- Dog event --------------------------------------------------------------
+
+func _on_dog_requested() -> void:
+	_start_dog_event()
+
+
+## Picks a random lane for the event; tests can force a lane to stay deterministic.
+func _start_dog_event(forced_lane: int = -1) -> void:
+	if phase != Phase.RUNNING or _dog_state != DogState.IDLE:
+		return
+	_dog_lane = forced_lane if forced_lane >= 0 else randi_range(0, 2)
+	_dog_state = DogState.WAITING
+	_dog_retry = 0.0
+
+
+func _update_dog_event(delta: float) -> void:
+	match _dog_state:
+		DogState.WAITING:
+			_dog_retry -= delta
+			if _dog_retry <= 0.0:
+				_begin_dog_warning()
+		DogState.WARNING:
+			_dog_warning -= delta
+			if _dog_warning <= 0.0:
+				_spawn_dog()
+		DogState.RUNNING:
+			if _dog == null or not is_instance_valid(_dog) or _dog.is_queued_for_deletion():
+				_clear_dog_event()
+
+
+## Warns in the locked lane once that lane is free of hazards.
+func _begin_dog_warning() -> void:
+	if _lane_has_hazards(_dog_lane):
+		_dog_state = DogState.WAITING
+		_dog_retry = 0.5
+		return
+	_dog_state = DogState.WARNING
+	_dog_warning = GameConfig.DOG_WARNING_TIME
+	_dog_alert = DOG_ALERT_SCENE.instantiate() as DogAlert
+	_dog_alert.lane = _dog_lane
+	entities.add_child(_dog_alert)
+	AudioDirector.play_sfx("dog_bark")
+	if mode == GameConfig.Mode.TRAINING and not _dog_hint_shown:
+		_dog_hint_shown = true
+		hud.show_tutorial_hint("DOG INCOMING! Switch lanes or jump!")
+
+
+func _spawn_dog() -> void:
+	if _lane_has_hazards(_dog_lane):
+		# Safety net: hold the alert until the lane is clear again.
+		_dog_warning = 0.25
+		return
+	if _dog_alert != null and is_instance_valid(_dog_alert):
+		_dog_alert.dismiss()
+	_dog_alert = null
+	var dog := DOG_SCENE.instantiate() as Dog
+	dog.lane = _dog_lane
+	dog.extra_speed = GameConfig.dog_extra_speed(spawner.difficulty)
+	dog.position = Vector2(SpawnDirector.SPAWN_X, GameConfig.lane_y(_dog_lane))
+	entities.add_child(dog)
+	_dog = dog
+	_dog_state = DogState.RUNNING
+
+
+func _clear_dog_event() -> void:
+	if _dog_alert != null and is_instance_valid(_dog_alert):
+		_dog_alert.dismiss()
+	_dog_alert = null
+	if _dog != null and is_instance_valid(_dog) and not _dog.is_queued_for_deletion():
+		_dog.queue_free()
+	_dog = null
+	_dog_lane = -1
+	_dog_state = DogState.IDLE
+
+
+func _reset_dog_event() -> void:
+	_dog_state = DogState.IDLE
+	_dog_lane = -1
+	_dog_retry = 0.0
+	_dog_warning = 0.0
+	_dog_alert = null
+	_dog = null
+	_dog_hint_shown = false
+
+
+func _lane_has_hazards(lane: int) -> bool:
+	for node in get_tree().get_nodes_in_group("hazards"):
+		if not is_instance_valid(node) or node.is_queued_for_deletion():
+			continue
+		var hazard := node as Hazard
+		if hazard == null or hazard.lane != lane:
+			continue
+		if hazard.get_parent() != entities:
+			continue
+		if hazard.position.x > -320.0 and hazard.position.x < SpawnDirector.SPAWN_X + 40.0:
+			return true
+	return false
 
 
 # --- Player events ----------------------------------------------------------
@@ -330,6 +447,7 @@ func _finish(did_win: bool, reason: String) -> void:
 	victory = did_win
 	player.input_enabled = false
 	spawner.enabled = false
+	_clear_dog_event()
 	AudioDirector.set_intensity(0.0)
 	AudioDirector.stop_music(0.5)
 	if did_win:

@@ -6,7 +6,7 @@ extends Area2D
 
 enum Kind {
 	TRASH_CAN, CONE, BICYCLE, MOP_BUCKET, DOOR, SKATEBOARD,
-	VACUUM, LOW_BRANCH, BANNER, MOTORCYCLE, TOY, PET,
+	VACUUM, LOW_BRANCH, BANNER, MOTORCYCLE, TOY, PET, DOG,
 }
 
 const ZONE_KINDS := {
@@ -16,7 +16,7 @@ const ZONE_KINDS := {
 }
 
 const OVERHEAD_KINDS := [Kind.LOW_BRANCH, Kind.BANNER]
-const MOVING_KINDS := [Kind.SKATEBOARD, Kind.VACUUM, Kind.MOTORCYCLE, Kind.PET, Kind.BICYCLE]
+const MOVING_KINDS := [Kind.SKATEBOARD, Kind.VACUUM, Kind.MOTORCYCLE, Kind.PET, Kind.BICYCLE, Kind.DOG]
 
 @export var kind: int = Kind.CONE
 @export var lane: int = 1
@@ -84,6 +84,9 @@ func _setup_collider() -> void:
 		Kind.PET:
 			_shape.size = Vector2(84, 58)
 			_collider.position = Vector2(0, -29)
+		Kind.DOG:
+			_shape.size = GameConfig.DOG_HITBOX_SIZE
+			_collider.position = Vector2(0, GameConfig.DOG_HITBOX_OFFSET_Y)
 		_:
 			_shape.size = Vector2(70, 70)
 			_collider.position = Vector2(0, -35)

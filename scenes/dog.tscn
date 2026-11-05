@@ -1,0 +1,52 @@
+[gd_scene format=3 uid="uid://dafbq1gbwkqto"]
+
+[ext_resource type="Script" uid="uid://bigxic3lbwpaw" path="res://scripts/entities/dog.gd" id="1_dog"]
+[ext_resource type="Texture2D" uid="uid://cavjkfs71hvdl" path="res://assets/characters/dog/Walk.png" id="2_walk"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_dog"]
+size = Vector2(96, 54)
+
+[sub_resource type="Animation" id="Animation_walk"]
+resource_name = "walk"
+length = 0.428571
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Sprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.0714286, 0.142857, 0.214286, 0.285714, 0.357143),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1),
+"update": 1,
+"values": [0, 1, 2, 3, 4, 5]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_dog"]
+_data = {
+&"walk": SubResource("Animation_walk")
+}
+
+[node name="Dog" type="Area2D" unique_id=1907120847]
+scale = Vector2(1.5, 1.5)
+collision_layer = 2
+collision_mask = 0
+monitoring = false
+script = ExtResource("1_dog")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1730675990]
+position = Vector2(0, -27)
+shape = SubResource("RectangleShape2D_dog")
+
+[node name="Sprite" type="Sprite2D" parent="." unique_id=190766114]
+texture_filter = 1
+position = Vector2(0, -48)
+scale = Vector2(2, 2)
+texture = ExtResource("2_walk")
+hframes = 6
+frame = 2
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=1159778653]
+libraries/ = SubResource("AnimationLibrary_dog")
+autoplay = &"walk"

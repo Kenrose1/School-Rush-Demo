@@ -77,6 +77,19 @@ const PURSUER_FADE_TIME := 2.5
 const PURSUER_X_OFFSET := 340.0
 const PURSUER_RECOVERY_RATIO := 0.999
 
+# --- Dog event --------------------------------------------------------------
+const DOG_WARNING_TIME := 1.0                   # alert shows, then the dog appears
+const DOG_ALERT_X := 1560.0                     # fixed spot in the right third
+const DOG_ALERT_Y_OFFSET := 150.0               # above the warned lane
+const DOG_ALERT_SCALE := 1.15
+const DOG_HITBOX_SIZE := Vector2(96.0, 54.0)
+const DOG_HITBOX_OFFSET_Y := -27.0
+const DOG_INTERVAL_MIN := 10.0
+const DOG_INTERVAL_MAX := 15.0
+const DOG_FIRST_DELAY := 10.0
+const DOG_EXTRA_MIN := 220.0                    # px/s on top of world speed
+const DOG_EXTRA_MAX := 420.0
+
 # --- Misc -------------------------------------------------------------------
 const SAVE_PATH := "user://save.cfg"
 const TARGET_FPS := 60
@@ -108,6 +121,14 @@ static func base_speed_for_zone(zone: int) -> float:
 
 static func shop_cost(level: int) -> int:
 	return SHOP_BASE_COST + maxi(0, level) * SHOP_COST_STEP
+
+static func dog_extra_speed(difficulty: float) -> float:
+	return lerpf(DOG_EXTRA_MIN, DOG_EXTRA_MAX, clampf(difficulty, 0.0, 1.0))
+
+
+static func dog_interval(difficulty: float) -> float:
+	return lerpf(DOG_INTERVAL_MAX, DOG_INTERVAL_MIN, clampf(difficulty, 0.0, 1.0))
+
 
 static func zone_accent(zone: int) -> Color:
 	return Color(ZONE_ACCENT_HEX[clampi(zone, 0, 2)])

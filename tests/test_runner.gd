@@ -7,6 +7,8 @@ const PLAYER_SCENE := preload("res://scenes/player.tscn")
 const HAZARD_SCENE := preload("res://scenes/hazard.tscn")
 const ITEM_SCENE := preload("res://scenes/collectible.tscn")
 const COIN_SCENE := preload("res://scenes/coin.tscn")
+const DOG_SCENE := preload("res://scenes/dog.tscn")
+const DOG_ALERT_SCENE := preload("res://scenes/dog_alert.tscn")
 const PURSUER_SCENE := preload("res://scenes/pursuer.tscn")
 const RUN_SCENE := preload("res://scenes/run_world.tscn")
 const MENU_SCENE := preload("res://scenes/main_menu.tscn")
@@ -38,6 +40,12 @@ func _ready() -> void:
 	await _test_run_world_integration()
 	await _test_victory_flow()
 	await _test_mode_rules()
+	await _test_dog_event()
+	await _test_dog_clearance()
+	await _test_dog_collision()
+	await _test_dog_spawn_rules()
+	await _test_dog_animation_resources()
+	await _test_dog_lane_suppression()
 	await _test_live_collisions()
 	await _test_main_flow()
 
@@ -210,6 +218,16 @@ func _test_hitbox_and_layers() -> void:
 	_check(hazard.is_hazard(), "hazard reports itself as a hazard")
 	hazard.queue_free()
 
+	var dog := DOG_SCENE.instantiate() as Dog
+	add_child(dog)
+	await get_tree().process_frame
+	_check_eq(dog.kind, Hazard.Kind.DOG, "dog uses the DOG hazard kind")
+	_check_eq(dog.collision_layer, 2, "dog is on the hazard layer")
+	_check_eq(dog.collision_mask, 0, "dog does not mask anything (player detects)")
+	_check(dog.is_hazard(), "dog reports itself as a hazard")
+	dog.queue_free()
+	await get_tree().process_frame
+
 	var item := ITEM_SCENE.instantiate() as Collectible
 	add_child(item)
 	await get_tree().process_frame
@@ -361,13 +379,13 @@ func _test_audio_assets() -> void:
 		if ResourceLoader.exists(path):
 			var stream := load(path) as AudioStream
 			_check(stream != null and stream.get_length() > 1.0, "audio asset decodes: %s" % track)
-	for sfx in ["jump", "slide", "lane", "pickup", "combo", "hurt", "dash", "bell", "gameover", "click", "pursuer", "victory"]:
+	for sfx in ["jump", "slide", "lane", "pickup", "combo", "hurt", "dash", "bell", "gameover", "click", "pursuer", "victory", "dog_bark"]:
 		var path := "res://assets/audio/sfx_%s.wav" % sfx
 		_check(ResourceLoader.exists(path), "sfx asset exists: %s" % sfx)
 
 
 func _test_scenes() -> void:
-	for scene in [MENU_SCENE, HUD_SCENE, CUTSCENE_SCENE, RUN_SCENE, COIN_SCENE]:
+	for scene in [MENU_SCENE, HUD_SCENE, CUTSCENE_SCENE, RUN_SCENE, COIN_SCENE, DOG_SCENE, DOG_ALERT_SCENE]:
 		var instance: Node = scene.instantiate()
 		_check(instance != null, "scene instantiates: %s" % instance.scene_file_path)
 		instance.queue_free()
@@ -508,6 +526,254 @@ func _test_mode_rules() -> void:
 	await get_tree().process_frame
 	_check(not cone.requires_slide, "cone is a ground hazard cleared by jumping")
 	cone.queue_free()
+	await get_tree().process_frame
+
+
+func _test_dog_event() -> void:
+	var world := RUN_SCENE.instantiate() as RunWorld
+	add_child(world)
+	await get_tree().process_frame
+	world.start_run(GameConfig.Mode.STANDARD)
+	world.spawner.enabled = false
+	world.phase = RunWorld.Phase.RUNNING
+	world.set_process(false)
+	await get_tree().physics_frame
+
+	var player_lane := world.player.lane
+	# Lane selection is random, not tied to the player's current lane.
+	var seen := {}
+	for i in 40:
+		world._dog_state = RunWorld.DogState.IDLE
+		world._start_dog_event()
+		seen[world._dog_lane] = true
+	_check(seen.size() >= 2, "the dog picks a random lane instead of following the player")
+	world._dog_state = RunWorld.DogState.IDLE
+
+	var lane: int = (player_lane + 1) % 3
+	world._start_dog_event(lane)
+	_check_eq(world._dog_state, RunWorld.DogState.WAITING, "dog event waits for a clear lane")
+	world._update_dog_event(0.01)
+	_check_eq(world._dog_state, RunWorld.DogState.WARNING, "dog alert starts in the chosen lane")
+	_check_eq(world._dog_lane, lane, "dog warning locks the randomized lane")
+	_check(world._dog_alert != null, "the alert symbol is created")
+	_check(world._dog == null, "no dog exists while the alert is showing")
+
+	world._update_dog_event(GameConfig.DOG_WARNING_TIME - 0.1)
+	_check_eq(world._dog_state, RunWorld.DogState.WARNING, "the alert holds for the full warning time")
+	_check(world._dog == null, "the dog waits until the warning finishes")
+
+	world._update_dog_event(0.2)
+	_check_eq(world._dog_state, RunWorld.DogState.RUNNING, "the dog appears after the warning")
+	_check(world._dog != null, "a dog entity is spawned")
+	_check_eq(world._dog.lane, lane, "the dog is locked to the warned lane")
+	_check(world._dog.extra_speed > 0.0, "the dog sprints faster than the world")
+	_check_eq(world._dog.kind, Hazard.Kind.DOG, "the dog uses the DOG hazard kind")
+
+	world.player.move_lane(1)
+	world._update_dog_event(0.01)
+	_check_eq(world._dog.lane, lane, "the dog does not follow the player's lane switch")
+
+	world.queue_free()
+	await get_tree().process_frame
+
+
+func _test_dog_clearance() -> void:
+	var world := RUN_SCENE.instantiate() as RunWorld
+	add_child(world)
+	await get_tree().process_frame
+	world.start_run(GameConfig.Mode.STANDARD)
+	world.spawner.enabled = false
+	world.phase = RunWorld.Phase.RUNNING
+	world.set_process(false)
+	await get_tree().physics_frame
+
+	var lane := world.player.lane
+	world._spawn_hazard(Hazard.Kind.CONE, lane, 0.0)
+	var blocker := world.entities.get_child(world.entities.get_child_count() - 1) as Hazard
+	blocker.position = Vector2(1200.0, GameConfig.lane_y(lane))
+	world._start_dog_event(lane)
+	world._update_dog_event(0.01)
+	_check_eq(world._dog_state, RunWorld.DogState.WAITING, "a hazard in the lane delays the dog alert")
+	_check(world._dog_alert == null, "no alert appears while the dog's lane is blocked")
+
+	blocker.queue_free()
+	await get_tree().process_frame
+	world._update_dog_event(0.5)
+	_check_eq(world._dog_state, RunWorld.DogState.WARNING, "the alert starts once the lane is clear")
+	_check(world._dog_alert != null, "the alert appears after the lane clears")
+
+	world.queue_free()
+	await get_tree().process_frame
+
+
+func _test_dog_collision() -> void:
+	var stayed := await _make_dog_world()
+	var lane: int = stayed.player.lane
+	stayed._start_dog_event(lane)
+	stayed._update_dog_event(0.01)
+	stayed._update_dog_event(GameConfig.DOG_WARNING_TIME + 0.01)
+	_check(stayed._dog != null, "test dog spawned")
+	stayed._dog.position = Vector2(stayed.player.position.x, GameConfig.lane_y(lane))
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check_eq(stayed.player.hearts, 2, "the dog costs one heart (Area2D overlap)")
+	_check(stayed.pursuer.is_active(), "the dog hit activates the pursuer")
+	stayed.queue_free()
+	await get_tree().process_frame
+
+	var jumper := await _make_dog_world()
+	jumper.player.airborne = true
+	jumper.player.jump_height = 120.0
+	jumper.player.jump_speed = 0.0
+	jumper.player.hitbox_updated()
+	jumper._start_dog_event(jumper.player.lane)
+	jumper._update_dog_event(0.01)
+	jumper._update_dog_event(GameConfig.DOG_WARNING_TIME + 0.01)
+	jumper._dog.position = Vector2(jumper.player.position.x, GameConfig.lane_y(jumper.player.lane))
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check_eq(jumper.player.hearts, 3, "jumping over the dog is safe")
+	jumper.queue_free()
+	await get_tree().process_frame
+
+	var slider := await _make_dog_world()
+	_check(slider.player.try_slide(), "test slide starts")
+	slider._start_dog_event(slider.player.lane)
+	slider._update_dog_event(0.01)
+	slider._update_dog_event(GameConfig.DOG_WARNING_TIME + 0.01)
+	slider._dog.position = Vector2(slider.player.position.x, GameConfig.lane_y(slider.player.lane))
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check_eq(slider.player.hearts, 2, "sliding does not avoid the dog")
+	slider.queue_free()
+	await get_tree().process_frame
+
+	var switcher := await _make_dog_world()
+	var dog_lane: int = switcher.player.lane
+	switcher._start_dog_event(dog_lane)
+	switcher._update_dog_event(0.01)
+	switcher._update_dog_event(GameConfig.DOG_WARNING_TIME + 0.01)
+	switcher.player.move_lane(1)
+	switcher._dog.position = Vector2(switcher.player.position.x, GameConfig.lane_y(dog_lane))
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check_eq(switcher.player.hearts, 3, "switching lanes avoids the dog")
+	switcher.queue_free()
+	await get_tree().process_frame
+
+
+func _make_dog_world() -> RunWorld:
+	var world := RUN_SCENE.instantiate() as RunWorld
+	add_child(world)
+	await get_tree().process_frame
+	world.start_run(GameConfig.Mode.STANDARD)
+	world.spawner.enabled = false
+	world.phase = RunWorld.Phase.RUNNING
+	world.set_process(false)
+	await get_tree().physics_frame
+	return world
+
+
+func _test_dog_spawn_rules() -> void:
+	_check_near(GameConfig.DOG_WARNING_TIME, 1.0, 0.001, "dog warning lasts one second")
+	_check(GameConfig.dog_interval(1.0) < GameConfig.dog_interval(0.0), "dogs become more frequent with difficulty")
+	_check(GameConfig.dog_extra_speed(1.0) > GameConfig.dog_extra_speed(0.0), "dogs sprint faster with difficulty")
+
+	var spawner := SpawnDirector.new()
+	add_child(spawner)
+	spawner.set_process(false)
+	await get_tree().process_frame
+	var requests := [0]
+	spawner.dog_requested.connect(func() -> void: requests[0] += 1)
+	spawner.enabled = true
+	spawner.training = false
+
+	spawner.set_zone(GameConfig.Zone.HALLWAY)
+	spawner._dog_timer = 0.0
+	spawner._process(0.01)
+	_check_eq(requests[0], 0, "dogs never spawn in the school hallway")
+
+	spawner.set_zone(GameConfig.Zone.STREET)
+	spawner._dog_timer = 0.0
+	spawner._process(0.01)
+	_check_eq(requests[0], 1, "dogs spawn in the neighborhood street")
+
+	spawner.set_zone(GameConfig.Zone.HOME)
+	spawner._dog_timer = 0.0
+	spawner._process(0.01)
+	_check_eq(requests[0], 2, "dogs spawn in the home area")
+
+	spawner.queue_free()
+	await get_tree().process_frame
+
+
+func _test_dog_animation_resources() -> void:
+	var dog := DOG_SCENE.instantiate()
+	var dog_player := dog.get_node_or_null("AnimationPlayer") as AnimationPlayer
+	_check(dog_player != null, "dog scene has an AnimationPlayer")
+	if dog_player != null:
+		_check_eq(dog_player.autoplay, "walk", "dog AnimationPlayer autoplays the walk animation")
+		_check(dog_player.has_animation("walk"), "dog walk animation exists")
+		var walk := dog_player.get_animation("walk")
+		_check_eq(walk.get_track_count(), 1, "walk animation has one track")
+		_check_eq(walk.track_get_path(0), NodePath("Sprite:frame"), "walk animates Sprite.frame")
+		_check_eq(walk.track_get_key_count(0), 6, "walk animation keys all six frames")
+		_check_near(walk.length, 6.0 / 14.0, 0.001, "walk animation runs at 14 FPS")
+		_check_eq(walk.loop_mode, Animation.LOOP_LINEAR, "walk animation loops")
+	dog.free()
+
+	var alert := DOG_ALERT_SCENE.instantiate()
+	var alert_player := alert.get_node_or_null("AnimationPlayer") as AnimationPlayer
+	_check(alert_player != null, "dog alert scene has an AnimationPlayer")
+	if alert_player != null:
+		_check_eq(alert_player.autoplay, "alert", "alert AnimationPlayer autoplays the alert animation")
+		_check(alert_player.has_animation("alert"), "alert animation exists")
+		var pulse := alert_player.get_animation("alert")
+		_check_eq(pulse.get_track_count(), 1, "alert animation has one track")
+		_check_eq(pulse.track_get_path(0), NodePath("Sprite:frame"), "alert animates Sprite.frame")
+		_check_eq(pulse.track_get_key_count(0), 14, "alert animation keys all fourteen frames")
+		_check_near(pulse.length, 14.0 / 16.0, 0.001, "alert animation runs at 16 FPS")
+		_check_eq(pulse.loop_mode, Animation.LOOP_LINEAR, "alert animation loops")
+	alert.free()
+
+	var live_dog := DOG_SCENE.instantiate() as Dog
+	add_child(live_dog)
+	await get_tree().process_frame
+	var live_sprite := live_dog.get_node("Sprite") as Sprite2D
+	var frames := {}
+	for i in 12:
+		await get_tree().create_timer(0.05).timeout
+		frames[live_sprite.frame] = true
+	_check(frames.size() >= 2, "dog AnimationPlayer advances frames at runtime")
+	live_dog.queue_free()
+	await get_tree().process_frame
+
+
+func _test_dog_lane_suppression() -> void:
+	var world := await _make_dog_world()
+	var dog_lane: int = world.player.lane
+	world._start_dog_event(dog_lane)
+	world._update_dog_event(0.01)
+	_check_eq(world._dog_state, RunWorld.DogState.WARNING, "suppression test starts the dog warning")
+
+	var before := world.entities.get_child_count()
+	world._spawn_hazard(Hazard.Kind.CONE, dog_lane, 0.0)
+	_check_eq(world.entities.get_child_count(), before, "no hazard spawns in the dog's lane during the event")
+
+	var other_lane: int = (dog_lane + 1) % 3
+	world._spawn_hazard(Hazard.Kind.CONE, other_lane, 0.0)
+	_check_eq(world.entities.get_child_count(), before + 1, "other lanes keep spawning hazards during the event")
+	var spawned := world.entities.get_child(world.entities.get_child_count() - 1) as Hazard
+	_check_eq(spawned.lane, other_lane, "the new hazard lands in the unprotected lane")
+
+	world._update_dog_event(GameConfig.DOG_WARNING_TIME + 0.01)
+	world._clear_dog_event()
+	await get_tree().process_frame
+	var after_event := world.entities.get_child_count()
+	world._spawn_hazard(Hazard.Kind.CONE, dog_lane, 0.0)
+	_check_eq(world.entities.get_child_count(), after_event + 1, "the dog's lane spawns hazards again after the event")
+
+	world.queue_free()
 	await get_tree().process_frame
 
 
